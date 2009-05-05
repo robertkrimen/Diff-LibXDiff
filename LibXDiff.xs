@@ -39,7 +39,8 @@ static int _mmfile_outf(void *priv, mmbuffer_t *mb, int nbuf) {
 	return 0;
 }
 
-memallocator_t memallocator;
+memallocator_t memallocator = { malloc, 0 }; /* Paranoid... */
+
 static void initialize_allocator(void) {
     if (! memallocator.malloc) {
         memallocator.priv = NULL;
@@ -50,82 +51,102 @@ static void initialize_allocator(void) {
     }
 }
 
-char* __xdiff(const char* string1, const char* string2) {
-	int i = 1, ctxlen = 3, bsize = 16, do_diff, do_patch, do_bdiff, do_bpatch, do_rabdiff;
-	mmfile_t mf1, mf2;
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	bdiffparam_t bdp;
-	xdemitcb_t ecb, rjecb;
+#define RESULT_T_ERROR_SIZE 3
+typedef struct {
+    char* stringr;
+    const char* error[RESULT_T_ERROR_SIZE];
+    int errorp;
+} result_t;
+result_t result;
+
+static void initialize_result( result_t* result ) {
+    int ii;
+    result->stringr = 0;
+    for (ii = 0; ii < RESULT_T_ERROR_SIZE; ii++)
+        result->error[ii] = 0;
+    result->errorp = -1;
+}
+
+static const char* _string_into_mmfile( mmfile_t* mmf, const char* string ) {
 
     initialize_allocator();
-/*
-	memallocator_t malt;
-	malt.priv = NULL;
-	malt.malloc = std_malloc;
-	malt.free = std_free;
-	malt.realloc = std_realloc;
-	xdl_set_allocator(&malt);
-*/
 
-	xpp.flags = 0;
-	xecfg.ctxlen = ctxlen;
-	bdp.bsize = bsize;
-
-	if (xdl_init_mmfile(&mf1, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC) < 0) {
-		return "";
+	if ( xdl_init_mmfile( mmf, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC ) < 0 ) {
+		return "Unable to initialize mmfile";
 	}
 
-    int got = 0;
-
-    if ((got = xdl_write_mmfile(&mf1, string1, strlen(string1))) < strlen(string1)) {
-        return "";
+    int wrote = 0;
+    int length = strlen(string);
+    if ( (wrote = xdl_write_mmfile( mmf, string, length )) < length ) {
+        return "Couldn't write entire string to mmfile";
     }
 
-	if (xdl_init_mmfile(&mf2, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC) < 0) {
-		return "";
-	}
+    return 0;
+}
 
-    if ((got = xdl_write_mmfile(&mf2, string2, strlen(string2))) < strlen(string2)) {
-        return "";
+result_t* __xdiff(const char* string1, const char* string2) {
+	mmfile_t mmf1, mmf2, mmfr;
+    const char* error;
+    char *stringr;
+
+    initialize_allocator();
+    initialize_result( &result );
+
+    if ( error = _string_into_mmfile( &mmf1, string1 ) ) {
+        result.error[++result.errorp] = error;
+        result.error[++result.errorp] = "Couldn't load string1 into mmfile";
+        return &result;
+    }
+
+    if ( error = _string_into_mmfile( &mmf2, string2 ) ) {
+        xdl_free_mmfile( &mmf1 );
+        result.error[++result.errorp] = error;
+        result.error[++result.errorp] = "Couldn't load string2 into mmfile";
+        return &result;
     }
     
-    mmfile_t mfp;
-    char *result;
-
     {
-        if (xdl_init_mmfile(&mfp, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC) < 0) {
+        int size, wrote;
+        xpparam_t xpp;
+        xdemitconf_t xecfg;
+        xdemitcb_t ecb;
 
-            return "";
-        }
-        ecb.priv = &mfp;
+	    xpp.flags = 0;
+
+	    xecfg.ctxlen = 3;
+
+        ecb.priv = &mmfr;
         ecb.outf = _mmfile_outf;
-/*
-		ecb.priv = stderr;
-		ecb.outf = _file_outf;
-*/
+        if (xdl_init_mmfile( &mmfr, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC ) < 0) {
+            result.error[++result.errorp] = "Couldn't initialize accumulating mmfile (xdl_init_atomic)";
+			xdl_free_mmfile( &mmf2 );
+			xdl_free_mmfile( &mmf1 );
+            return &result;
+        }
 
-		if (xdl_diff(&mf1, &mf2, &xpp, &xecfg, &ecb) < 0) {
-			xdl_free_mmfile(&mf2);
-			xdl_free_mmfile(&mf1);
+		if (xdl_diff( &mmf1, &mmf2, &xpp, &xecfg, &ecb ) < 0) {
+			xdl_free_mmfile( &mmf2 );
+			xdl_free_mmfile( &mmf1 );
+            result.error[++result.errorp] = "Couldn't perform diff (xdl_diff)";
+            return &result;
 		}
 
-        got = xdl_mmfile_size(&mfp);
-//    fprintf(stderr, "\t%d\n", got);
+        size = xdl_mmfile_size( &mmfr );
 
-        result = malloc( sizeof(char) * (xdl_mmfile_size(&mfp))+1 );
-//        got = xdl_read_mmfile( &mfp, result, xdl_mmfile_size(&mfp));
+        stringr = malloc( sizeof(char) * size + 1 );
 
-        xdl_seek_mmfile( &mfp, 0);
-        got = xdl_read_mmfile( &mfp, result, got);
-        result[got + 1] = 0;
-        xdl_free_mmfile(&mfp);
+        xdl_seek_mmfile( &mmfr, 0);
+        if ( (wrote = xdl_read_mmfile( &mmfr, stringr, size )) < size ) {
+            xdl_free_mmfile( &mmfr );
+            result.error[++result.errorp] = "Wasn't able to read entire mmfile result (xdl_read_mmfile)";
+            return &result;
+        }
+        stringr[size + 1] = 0;
+        xdl_free_mmfile( &mmfr );
     }
 
- //   fprintf(stderr, "\n\tHello, World.\n");
-  //  fprintf(stderr, "\t%d\n", got);
-
-    return result;
+    result.stringr = stringr;
+    return &result;
 }
 
 MODULE = Diff::LibXDiff PACKAGE = Diff::LibXDiff
@@ -137,13 +158,23 @@ _xdiff(string1, string2)
     SV* string1
     SV* string2
     INIT:
-        char* result = NULL;
+        result_t* result = NULL;
         RETVAL = &PL_sv_undef;
     CODE:
         result = __xdiff( SvPVX(string1), SvPVX(string2) );
-        if (result != NULL) {
-            RETVAL = newSVpv(result, 0);
-            free( result );
+        if (result != NULL && result->stringr) {
+            /* Liberally taken from perlxs... hope nothing is leaking */
+            HV* hashr = (HV*) sv_2mortal( (SV*) newHV() );
+            AV* errorr = (AV*) sv_2mortal( (SV*) newAV() );
+            int ii;
+            for (ii = 0; ii <= result->errorp; ii++) {
+                av_push( errorr, newSVpv( result->error[ii], 0 ) );
+                result->error[ii];
+            }
+            hv_store(  hashr, "stringr", 7, newSVpv( result->stringr, 0 ), 0);
+            hv_store(  hashr, "error", 5, newRV( (SV*) errorr ), 0);
+            free( result->stringr );
+            RETVAL = newRV( (SV*) hashr );
         }
     OUTPUT:
         RETVAL

@@ -18,12 +18,17 @@ our $VERSION = '0.01';
 require Exporter;
 require DynaLoader;
 
+use XXX;
+
 our @ISA = qw/Exporter DynaLoader/;
 our @EXPORT_OK = qw//;
 
 bootstrap Diff::LibXDiff $VERSION;
 
-warn _xdiff("Ab\n", "Cd\nYoink!2\n");
+my $result = _xdiff("Ab\n", "Cd\nYoink!2\n");
+WWW $result;
+warn join "\n", keys %$result;
+warn $result->{stringr};
 
 =head1 AUTHOR
 
