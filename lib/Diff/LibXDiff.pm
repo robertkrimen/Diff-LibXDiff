@@ -65,7 +65,7 @@ bootstrap Diff::LibXDiff $VERSION;
 
 =head1 METHODS
 
-=head1 $diff = Diff::LibXDiff->diff( $string1, $string2 )
+=head2 $diff = Diff::LibXDiff->diff( $string1, $string2 )
 
 Calculate the textual diff of $string1 and $string2 and return the result as a string
 
