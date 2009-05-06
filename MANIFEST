@@ -9,7 +9,6 @@ t/release/pod-coverage.t
 t/release/pod.t
 lib/Diff/LibXDiff.pm
 xdiff.c
-xdiff.o
 xdiff/xadler32.h
 xdiff/xbdiff.h
 xdiff/xdiff.c
