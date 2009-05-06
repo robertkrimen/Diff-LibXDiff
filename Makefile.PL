@@ -6,6 +6,24 @@ use strict;
 use ExtUtils::MakeMaker;
 use Config;
 
+{
+    require ExtUtils::MakeMaker;
+    use strict;
+    no strict 'refs';
+
+    my $libscan = \&{"ExtUtils::MM_Any::libscan"};
+    *{"ExtUtils::MM_Any::libscan"} = sub {
+        return '' unless $libscan->(@_);
+        return '' if $_[1] =~ /\.sw[p-z]$/;
+        return $_[1];
+    };
+}
+
+if (-e '.screenrc') {
+    my $all_from = join '/', 'lib', qw/Diff LibXDiff.pm/;
+    `perldoc -tF $all_from > README` if ! -e 'README' || (stat $all_from)[9] > (stat 'README')[9];
+}
+
 # Some dependencies need to be more aggressive on Windows
 sub WINLIKE () {
 	return 1 if $^O eq 'MSWin32';
@@ -80,9 +98,9 @@ my (@CC_LIBS, @CC_INC, @CC_DEFINE, @O_FILES);
 push @O_FILES, 'LibXDiff.o';
 
 if ($use_xdiff_c) {
-    push @CC_INC, '-Iinclude';
+    push @CC_INC, '-Ixdiff';
     push @CC_DEFINE, '-DNULL=0';
-    push @O_FILES, 'xdiff.o';
+    push @O_FILES, 'xdiff.o'
 }
 else {
     push @CC_INC, "-I$xdiff_incpath";
@@ -99,7 +117,7 @@ my @CC_OPTIONS = (
 
 WriteMakefile(
 	NAME => 'Diff::LibXDiff',
-	ABSTRACT => 'Durp!',
+	ABSTRACT => 'Calculate a diff with LibXDiff (via XS)',
 	VERSION_FROM => 'lib/Diff/LibXDiff.pm',
 	PREREQ_PM => {
 		'Test::More' => '0.42',
@@ -120,6 +138,9 @@ WriteMakefile(
             },
             build_requires => {
                 'Test::Most' => '0.42',
+            },
+            requires => {
+                'Carp::Clan' => 0,
             },
             resources => {
                 repository => 'http://github.com/robertkrimen/Diff-LibXDiff/tree/master',

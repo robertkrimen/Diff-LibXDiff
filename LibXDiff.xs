@@ -133,7 +133,7 @@ result_t* __xdiff(const char* string1, const char* string2) {
 
         size = xdl_mmfile_size( &mmfr );
 
-        stringr = malloc( sizeof(char) * size + 1 );
+        stringr = malloc( sizeof(char) * (size + 1) );
 
         xdl_seek_mmfile( &mmfr, 0);
         if ( (wrote = xdl_read_mmfile( &mmfr, stringr, size )) < size ) {
@@ -141,7 +141,7 @@ result_t* __xdiff(const char* string1, const char* string2) {
             result.error[++result.errorp] = "Wasn't able to read entire mmfile result (xdl_read_mmfile)";
             return &result;
         }
-        stringr[size + 1] = 0;
+        stringr[size] = 0;
         xdl_free_mmfile( &mmfr );
     }
 

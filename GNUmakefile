@@ -1,4 +1,6 @@
-.PHONY: all test clean distclean dist xdiff.c
+.PHONY: all test clean distclean dist xdiff
+
+LIBXDIFF_DIR := src/libxdiff-0.23
 
 all: test
 
@@ -22,9 +24,9 @@ reset: clean
 	perl Makefile.PL
 	$(MAKE) test
 
-xdiff.c:
-	echo '#define PACKAGE_VERSION "0.23"' > $@
-	cd xdiff-0.23/xdiff && cat xdiffi.c xprepare.c xpatchi.c xmerge3.c xemit.c xmissing.c xutils.c xadler32.c xbdiff.c \
-		xbpatchi.c xversion.c xalloc.c xrabdiff.c >> ../../$@
-	cp xdiff-0.23/xdiff/xrabply.c .
-
+xdiff:
+	echo '#define PACKAGE_VERSION "0.23"' > xdiff.c
+	for file in xdiffi.c xprepare.c xpatchi.c xmerge3.c xemit.c xmissing.c xutils.c xadler32.c xbdiff.c \
+		xbpatchi.c xversion.c xalloc.c xrabdiff.c; do cat $(LIBXDIFF_DIR)/xdiff/$$file  >> xdiff.c; done
+	cp $(LIBXDIFF_DIR)/xdiff/*.h xdiff/
+	cp $(LIBXDIFF_DIR)/xdiff/xrabply.c xdiff/
