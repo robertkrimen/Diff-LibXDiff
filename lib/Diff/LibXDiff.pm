@@ -47,7 +47,7 @@ our $VERSION = '0.01';
 
 Diff::LibXDiff is a binding of LibXDiff (L<http://www.xmailserver.org/xdiff-lib.html>) to Perl via XS
 
-LibXDiff is the basis of the diff-engine for git
+LibXDiff is the basis of the diff engine for git
 
 Currently only the C<diff> method is supported, and that only with text diffing. More coming soon.
 
