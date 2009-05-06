@@ -1,3 +1,5 @@
+# Beware, major cargo-culting below from DBD::SQLite & XML::Parser
+
 # From ExtUtils::MakeMaker 6.48 and DBI 1.43
 use 5.006;
 use strict;
@@ -11,65 +13,96 @@ sub WINLIKE () {
 	return '';
 }
 
+my $xdiff_libpath = $ENV{XDIFF_LIB_PATH};
+my $xdiff_incpath = $ENV{XDIFF_INC_PATH};
+
+my @ARGV_;
+foreach (@ARGV) {
+  if (/^XDIFF_(LIB|INC)_PATH=(.+)/) {
+    if ($1 eq 'LIB') {
+      $xdiff_libpath = $2;
+    }
+    else {
+      $xdiff_incpath = $2;
+    }
+  }
+  else {
+    push(@ARGV_, $_);
+  }
+}
+@ARGV = @ARGV_;
+
+my $use_xdiff_c;
+if (not $xdiff_libpath and $] >= 5.006001 and $^O ne 'MSWin32') {
+
+  # User did not specify XDIFF_* so we'll see if something exists on the system
+
+  my $found = 0;
+  require ExtUtils::Liblist;        # Buggy before this
+  ($xdiff_libpath) = ExtUtils::Liblist->ext('-lxdiff');
+  # Test for existence of libxdiff
+  my $found = 0;
+  foreach (split(/\s+/, $Config{libpth})) {
+    if (-f "$_/libxdiff." . $Config{so}) {
+      $found = 1;
+      last;
+    }
+  }
+
+  unless ($found) {
+    $use_xdiff_c = 1;
+    warn <<_END_;
+    Could not find LibXDiff installed on your system
+    You can download it from:
+
+    http://www.xmailserver.org/xdiff-lib.html
+
+    If it is installed, but in a non-standard directory, then set the
+    following options in the environment (ENV) or pass them to Makefile.PL:
+
+        XDIFF_LIB_PATH=...  To set the directory in which to find libxdiff
+
+        XDIFF_INC_PATH=...  To set the directory in which to find xdiff.h
+
+    For now, we'll use a bundle version of LibXDiff
+_END_
+    }
+}
+
 # Make setting optional MakeMaker parameters more readable
 sub OPTIONAL {
 	return () unless $ExtUtils::MakeMaker::VERSION ge shift;
 	return @_;
 }
 
-my $force_local = 1;
+my (@CC_LIBS, @CC_INC, @CC_DEFINE, @O_FILES);
 
-my (@CC_LIBS, @CC_INC, @CC_DEFINE);
+push @O_FILES, 'LibXDiff.o';
 
-push @CC_LIBS, '-lxdiff';
-
-#my @CC_LIBS = ();
-#if ( $sqlite_lib ) {
-#    push @CC_LIBS, "-L$sqlite_lib";
-#}
-#unless ( $force_local ) {
-#    push @CC_LIBS, '-lsqlite3';
-#}
-
-#my @CC_INC = (
-#    '-I.',
-#    '-I$(DBI_INSTARCH_DIR)',
-#);
-#if ( $sqlite_inc ) {
-#    push @CC_INC, "-I$sqlite_inc";
-#}
-
-#my @CC_DEFINE = (
-#    '-DSQLITE_CORE',
-#    '-DSQLITE_ENABLE_FTS3',
-#    '-DSQLITE_ENABLE_COLUMN_METADATA',
-#    '-DNDEBUG=1',
-#    "-DSQLITE_PTR_SZ=$Config{ptrsize}"
-#);
-#if ( $Config{d_usleep} || $Config{osname} =~ m/linux/ ) {
-#    push @CC_DEFINE, '-DHAVE_USLEEP=1';
-#}
-#unless ( $Config{usethreads} ) {
-#    push @CC_DEFINE, '-DTHREADSAFE=0';
-#}
-#if ($^O eq 'hpux' and $Config{osvers} <= 10.20) {
-#    push @CC_DEFINE, '-DSQLITE_OMIT_LOAD_EXTENSION';
-#}
+if ($use_xdiff_c) {
+    push @CC_INC, '-Iinclude';
+    push @CC_DEFINE, '-DNULL=0';
+    push @O_FILES, 'xdiff.o';
+}
+else {
+    push @CC_INC, "-I$xdiff_incpath";
+    push @CC_LIBS, "-L$xdiff_libpath";
+    push @CC_LIBS, '-lxdiff';
+}
 
 my @CC_OPTIONS = (
-	INC          => join( ' ', @CC_INC    ),
-	DEFINE       => join( ' ', @CC_DEFINE ),
-	( @CC_LIBS ? (
-		LIBS => join( ' ', @CC_LIBS )
-	) : () ),
+	INC => join( ' ', @CC_INC    ),
+	DEFINE => join( ' ', @CC_DEFINE ),
+	OBJECT => join( ' ', @O_FILES ),
+    @CC_LIBS ?  (LIBS => join( ' ', @CC_LIBS )) : (),
 );
 
 WriteMakefile(
-	NAME             => 'Diff::LibXDiff',
-	ABSTRACT         => 'Durp!',
-	VERSION_FROM     => 'lib/Diff/LibXDiff.pm',
-	PREREQ_PM        => {
-		'Test::More'       => '0.42',
+	NAME => 'Diff::LibXDiff',
+	ABSTRACT => 'Durp!',
+	VERSION_FROM => 'lib/Diff/LibXDiff.pm',
+	PREREQ_PM => {
+		'Test::More' => '0.42',
 	},
 	OPTIONAL( '6.48',
 		MIN_PERL_VERSION => '5.006',
@@ -78,27 +111,19 @@ WriteMakefile(
 		LICENSE => 'perl',	
 	),
 	OPTIONAL( '6.11',
-#		AUTHOR  => 'Adam Kennedy <adamk@cpan.org>', # Release manager (can this be an array?)
-		AUTHOR  => 'Durp!',
+		AUTHOR  => 'Robert Krimen <rkrimen@cpan.org>',
 	),
 	OPTIONAL( '6.46',
 		META_MERGE => {
-#            configure_requires => {
-#                'ExtUtils::MakeMaker' => '6.48',
-#                'File::Spec'          => '0.82', # This is not allowed to be computed
-#                'DBI'                 => $DBI_required,
-#            },
-#            build_requires => {
-#                'File::Spec'          => (WINLIKE ? '3.27' : '0.82'),
-#                'Test::More'          => '0.42',
-#                # 'Test::NoWarnings'    => '0.081', # Bundled in /inc
-#            },
-#            resources => {
-#                license     => 'http://dev.perl.org/licenses/',
-#                bugtracker  => 'http://rt.cpan.org/Public/Dist/Display.html?Name=DBD-SQLite',
-#                repository  => 'http://svn.ali.as/cpan/trunk/DBD-SQLite',
-#                MailingList => 'http://lists.scsys.co.uk/cgi-bin/mailman/listinfo/dbd-sqlite',
-#            },
+            configure_requires => {
+                'ExtUtils::MakeMaker' => '6.48',
+            },
+            build_requires => {
+                'Test::Most' => '0.42',
+            },
+            resources => {
+                repository => 'http://github.com/robertkrimen/Diff-LibXDiff/tree/master',
+            },
 			no_index => {
 				directory => [ qw{
 					t inc util
@@ -106,52 +131,16 @@ WriteMakefile(
 			}
 		},
 	),
-	OBJECT => (
-		'$(O_FILES)'
-	),
-	OPTIMIZE         => '-O2',
-	clean            => {
-#        FILES => 'SQLite.xsi config.h tv.log',
+	OPTIMIZE => '-O2',
+	clean => {
 	},
-	PL_FILES         => {},
-	EXE_FILES        => [],
-
+	PL_FILES => {},
+	EXE_FILES => [],
 	@CC_OPTIONS,
 );
 
-#package MY;
+package MY;
 
-#use Config;
+use Config;
 
-#sub postamble {
-#    require DBI;
-#    require DBI::DBD;
-#    eval {
-#        DBI::DBD::dbd_postamble(@_)
-#    };
-#}
-
-#sub libscan {
-#    my ($self, $path) = @_;
-#    return if $path =~ /\.pl$/;
-#    ($path =~ m/\~$/) ? undef : $path;
-#}
-
-#sub test_via_harness {
-#    my ($self, $perl, $tests) = @_;
-#    if ( $^O eq 'hpux' and $Config{osvers} <= 10.20 ) {
-#        return qq{\tPERL_DL_NONLAZY=0 $perl "-MExtUtils::Command::MM" }
-#             . qq{"-e" "test_harness(\$(TEST_VERBOSE), '\$(INST_LIB)', '\$(INST_ARCHLIB)')" $tests\n};
-#    } else {
-#        $self->SUPER::test_via_harness($perl, $tests);
-#    }
-#}
-
-#sub test_via_script {
-#    my ($self, $perl, $script) = @_;
-#    if ( $^O eq 'hpux' and $Config{osvers} <= 10.20 ) {
-#        return qq{\tPERL_DL_NONLAZY=0 $perl "-I\$(INST_LIB)" "-I\$(INST_ARCHLIB)" $script\n};
-#    } else {
-#        $self->SUPER::test_via_script($perl, $script);
-#    }
-#}
+1;
