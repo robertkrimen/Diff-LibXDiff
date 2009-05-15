@@ -1,2 +1,5 @@
+0.02 Thursday May 14 20:29:38 PDT 2009:
+    - Include Carp::Clan dependency in Makefile.PL
+
 0.01 Tuesday May 05 18:30:45 PDT 2009:
     - Initial release onto The PAN

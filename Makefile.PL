@@ -121,6 +121,7 @@ WriteMakefile(
 	VERSION_FROM => 'lib/Diff/LibXDiff.pm',
 	PREREQ_PM => {
 		'Test::More' => '0.42',
+		'Carp::Clan' => 0,
 	},
 	OPTIONAL( '6.48',
 		MIN_PERL_VERSION => '5.006',
