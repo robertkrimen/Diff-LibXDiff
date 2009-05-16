@@ -122,6 +122,7 @@ WriteMakefile(
 	PREREQ_PM => {
 		'Test::More' => '0.42',
 		'Carp::Clan' => 0,
+        'Test::Most' => 0,
 	},
 	OPTIONAL( '6.48',
 		MIN_PERL_VERSION => '5.006',
@@ -138,7 +139,8 @@ WriteMakefile(
                 'ExtUtils::MakeMaker' => '6.48',
             },
             build_requires => {
-                'Test::Most' => '0.42',
+                'Test::More' => '0.42',
+                'Test::Most' => 0,
             },
             requires => {
                 'Carp::Clan' => 0,

@@ -1,3 +1,6 @@
+0.03 Saturday May 16 00:45:42 PDT 2009:
+    - Added Test::Most dependency
+
 0.02 Thursday May 14 20:29:38 PDT 2009:
     - Include Carp::Clan dependency in Makefile.PL
 

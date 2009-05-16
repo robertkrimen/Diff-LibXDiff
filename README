@@ -2,7 +2,7 @@ NAME
     Diff::LibXDiff - Calculate a diff with LibXDiff (via XS)
 
 VERSION
-    Version 0.02
+    Version 0.03
 
 SYNOPSIS
         use Diff::LibXDiff;
