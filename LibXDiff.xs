@@ -98,16 +98,6 @@ static void CONTEXT_cleanup( context_t* context ) {
         xdl_free_mmfile( &( context->mmf_result[ ii ] ) );
 }
 
-/*
-static void initialize_result( context_t* result ) {
-    int ii;
-    result->stringr = 0;
-    for (ii = 0; ii < CONTEXT_error_size; ii++)
-        result->error[ii] = 0;
-    result->error_counter = -1;
-}
-*/
-
 static const char* _string_2_mmfile( mmfile_t* mmf, const char* string ) {
 
     initialize_allocator();
@@ -124,21 +114,6 @@ static const char* _string_2_mmfile( mmfile_t* mmf, const char* string ) {
 
     return 0;
 }
-
-/*
-	} else if (do_patch) {
-		ecb.priv = stdout;
-		ecb.outf = xdlt_outf;
-		rjecb.priv = stderr;
-		rjecb.outf = xdlt_outf;
-		if (xdl_patch(&mf1, &mf2, XDL_PATCH_NORMAL, &ecb, &rjecb) < 0) {
-
-			xdl_free_mmfile(&mf2);
-			xdl_free_mmfile(&mf1);
-			return 6;
-		}
-	}
-*/
 
 void __xpatch( context_t *context, const char *string1, const char *string2 ) {
 
@@ -197,82 +172,6 @@ void __xpatch( context_t *context, const char *string1, const char *string2 ) {
         }
     }
 }
-
-/*
-context_t* __xpatch( const char* string1, const char* string2 ) {
-
-	mmfile_t mmf1, mmf2;
-
-    initialize_allocator();
-    initialize_result( &result );
-
-    if ( error = _string_2_mmfile( &mmf1, string1 ) ) {
-        result.error[++result.error_counter] = error;
-        result.error[++result.error_counter] = "Couldn't load string1 into mmfile";
-        return &result;
-    }
-
-    if ( error = _string_2_mmfile( &mmf2, string2 ) ) {
-        xdl_free_mmfile( &mmf1 );
-        result.error[++result.error_counter] = error;
-        result.error[++result.error_counter] = "Couldn't load string2 into mmfile";
-        return &result;
-    }
-    
-
-    {
-	    mmfile_t mmf_r1, mmf_r2;
-        xdemitcb_t ecb1, ecb2;
-
-        ecb1.priv = &mmf_r1;
-        ecb1.outf = _mmfile_outf;
-
-        ecb2.priv = &mmf_r2;
-        ecb2.outf = _mmfile_outf;
-
-        if (xdl_init_mmfile( &mmf_r1, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC ) < 0) {
-            result.error[++result.error_counter] = "Couldn't initialize first accumulating mmfile (xdl_init_atomic)";
-			xdl_free_mmfile( &mmf2 );
-			xdl_free_mmfile( &mmf1 );
-            return &result;
-        }
-
-        if (xdl_init_mmfile( &mmf_r2, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC ) < 0) {
-            result.error[++result.error_counter] = "Couldn't initialize second accumulating mmfile (xdl_init_atomic)";
-			xdl_free_mmfile( &mmf_r1 );
-			xdl_free_mmfile( &mmf2 );
-			xdl_free_mmfile( &mmf1 );
-            return &result;
-        }
-
-		if (xdl_patch( &mmf1, &mmf2, XDL_PATCH_NORMAL, &ecb1, &ecb2 ) < 0) {
-			xdl_free_mmfile( &mmf_r2 );
-			xdl_free_mmfile( &mmf_r1 );
-			xdl_free_mmfile( &mmf2 );
-			xdl_free_mmfile( &mmf1 );
-            result.error[++result.error_counter] = "Couldn't perform patch (xdl_patch)";
-            return &result;
-		}
-
-        {
-            int size = xdl_mmfile_size( &mmf_r1 );
-
-            string_r1 = malloc( sizeof(char) * (size + 1) );
-
-            xdl_seek_mmfile( &mmf_r1, 0);
-            if ( (wrote = xdl_read_mmfile( &mmf_r1, string_r1, size )) < size ) {
-                xdl_free_mmfile( &mmf_r1 );
-                result.error[++result.error_counter] = "Wasn't able to read (first) entire mmfile result (xdl_read_mmfile)";
-                return &result;
-            }
-            stringr[size] = 0;
-            xdl_free_mmfile( &mmf_r1 );
-        }
-
-    }
-
-}
-*/
 
 void __xdiff( context_t *context, const char *string1, const char *string2 ) {
 
