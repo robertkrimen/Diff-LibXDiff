@@ -51,23 +51,64 @@ static void initialize_allocator(void) {
     }
 }
 
-#define RESULT_T_ERROR_SIZE 3
-typedef struct {
-    char* stringr;
-    const char* error[RESULT_T_ERROR_SIZE];
-    int errorp;
-} result_t;
-result_t result;
+#define CONTEXT_string_result(AT) (context->string_result[AT])
+#define CONTEXT_mmf(AT) (context->mmf[AT])
+#define CONTEXT_mmf_result(AT) (context->mmf_result[AT])
+#define CONTEXT_add_error(ERROR) context->error[++context->error_counter - 1] = ERROR;
 
-static void initialize_result( result_t* result ) {
-    int ii;
-    result->stringr = 0;
-    for (ii = 0; ii < RESULT_T_ERROR_SIZE; ii++)
-        result->error[ii] = 0;
-    result->errorp = -1;
+#define CONTEXT_error_size 3
+#define CONTEXT_string_result_size 2
+#define CONTEXT_mmf_size 3
+#define CONTEXT_mmf_result_size 2
+
+typedef struct {
+    char *string_result[CONTEXT_string_result_size];
+	mmfile_t mmf[CONTEXT_mmf_size];
+	mmfile_t mmf_result[2];
+    const char *error[CONTEXT_error_size];
+    int error_counter;
+} context_t;
+context_t result;
+
+static int CONTEXT_mmf_result_2_string_result( context_t* context, int index ) {
+
+    mmfile_t *mmf_r1 = &CONTEXT_mmf_result(index);
+    int size = xdl_mmfile_size( mmf_r1 );
+    int wrote = 0;
+    char *string_result = CONTEXT_string_result(index) = malloc( sizeof(char) * (size + 1) );
+
+    xdl_seek_mmfile( mmf_r1, 0);
+    if ( (wrote = xdl_read_mmfile( mmf_r1, string_result, size )) < size ) {
+        return size - wrote;
+    }
+    string_result[size] = 0;
+    return 0;
 }
 
-static const char* _string_into_mmfile( mmfile_t* mmf, const char* string ) {
+static void CONTEXT_cleanup( context_t* context ) {
+    int ii;
+
+    for (ii = 0; ii < CONTEXT_string_result_size; ii++)
+        free( context->string_result[ ii ] );
+
+    for (ii = 0; ii < CONTEXT_mmf_size; ii++)
+        xdl_free_mmfile( &( context->mmf[ ii ] ) );
+
+    for (ii = 0; ii < CONTEXT_mmf_result_size; ii++)
+        xdl_free_mmfile( &( context->mmf_result[ ii ] ) );
+}
+
+/*
+static void initialize_result( context_t* result ) {
+    int ii;
+    result->stringr = 0;
+    for (ii = 0; ii < CONTEXT_error_size; ii++)
+        result->error[ii] = 0;
+    result->error_counter = -1;
+}
+*/
+
+static const char* _string_2_mmfile( mmfile_t* mmf, const char* string ) {
 
     initialize_allocator();
 
@@ -84,69 +125,203 @@ static const char* _string_into_mmfile( mmfile_t* mmf, const char* string ) {
     return 0;
 }
 
-result_t* __xdiff(const char* string1, const char* string2) {
-	mmfile_t mmf1, mmf2, mmfr;
-    const char* error;
-    char *stringr;
+/*
+	} else if (do_patch) {
+		ecb.priv = stdout;
+		ecb.outf = xdlt_outf;
+		rjecb.priv = stderr;
+		rjecb.outf = xdlt_outf;
+		if (xdl_patch(&mf1, &mf2, XDL_PATCH_NORMAL, &ecb, &rjecb) < 0) {
+
+			xdl_free_mmfile(&mf2);
+			xdl_free_mmfile(&mf1);
+			return 6;
+		}
+	}
+*/
+
+void __xpatch( context_t *context, const char *string1, const char *string2 ) {
+
+	mmfile_t *mmf1, *mmf2, *mmf_r1, *mmf_r2;
+    const char *error;
+
+    mmf1 = &CONTEXT_mmf(0);
+    mmf2 = &CONTEXT_mmf(1);
+    mmf_r1 = &CONTEXT_mmf_result(0);
+    mmf_r2 = &CONTEXT_mmf_result(1);
+
+    initialize_allocator();
+
+    if ( error = _string_2_mmfile( mmf1, string1 ) ) {
+        CONTEXT_add_error( error );
+        CONTEXT_add_error( "Couldn't load string1 into mmfile" );
+        return;
+    }
+
+    if ( error = _string_2_mmfile( mmf2, string2 ) ) {
+        CONTEXT_add_error( error );
+        CONTEXT_add_error( "Couldn't load string2 into mmfile" );
+        return;
+    }
+    
+    {
+        xdemitcb_t ecb1, ecb2;
+
+        ecb1.priv = mmf_r1;
+        ecb1.outf = _mmfile_outf;
+
+        ecb2.priv = mmf_r2;
+        ecb2.outf = _mmfile_outf;
+
+        if (xdl_init_mmfile( mmf_r1, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC ) < 0) {
+            CONTEXT_add_error( "Couldn't initialize accumulating mmfile mmf_r1  (xdl_init_atomic)" );
+            return;
+        }
+
+        if (xdl_init_mmfile( mmf_r2, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC ) < 0) {
+            CONTEXT_add_error( "Couldn't initialize accumulating mmfile mmf_r2  (xdl_init_atomic)" );
+            return;
+        }
+
+		if (xdl_patch( mmf1, mmf2, XDL_PATCH_NORMAL, &ecb1, &ecb2) < 0) {
+            CONTEXT_add_error( "Couldn't perform patch (xdl_patch)" );
+            return;
+		}
+
+        if ( CONTEXT_mmf_result_2_string_result( context, 0 ) ) {
+            CONTEXT_add_error( "Wasn't able to read entire mmfile result (mmf_r1) (xdl_read_mmfile)" );
+        }
+
+        if ( CONTEXT_mmf_result_2_string_result( context, 1 ) ) {
+            CONTEXT_add_error( "Wasn't able to read entire mmfile result (mmf_r2) (xdl_read_mmfile)" );
+        }
+    }
+}
+
+/*
+context_t* __xpatch( const char* string1, const char* string2 ) {
+
+	mmfile_t mmf1, mmf2;
 
     initialize_allocator();
     initialize_result( &result );
 
-    if ( error = _string_into_mmfile( &mmf1, string1 ) ) {
-        result.error[++result.errorp] = error;
-        result.error[++result.errorp] = "Couldn't load string1 into mmfile";
+    if ( error = _string_2_mmfile( &mmf1, string1 ) ) {
+        result.error[++result.error_counter] = error;
+        result.error[++result.error_counter] = "Couldn't load string1 into mmfile";
         return &result;
     }
 
-    if ( error = _string_into_mmfile( &mmf2, string2 ) ) {
+    if ( error = _string_2_mmfile( &mmf2, string2 ) ) {
         xdl_free_mmfile( &mmf1 );
-        result.error[++result.errorp] = error;
-        result.error[++result.errorp] = "Couldn't load string2 into mmfile";
+        result.error[++result.error_counter] = error;
+        result.error[++result.error_counter] = "Couldn't load string2 into mmfile";
         return &result;
     }
     
+
     {
-        int size, wrote;
-        xpparam_t xpp;
-        xdemitconf_t xecfg;
-        xdemitcb_t ecb;
+	    mmfile_t mmf_r1, mmf_r2;
+        xdemitcb_t ecb1, ecb2;
 
-	    xpp.flags = 0;
+        ecb1.priv = &mmf_r1;
+        ecb1.outf = _mmfile_outf;
 
-	    xecfg.ctxlen = 3;
+        ecb2.priv = &mmf_r2;
+        ecb2.outf = _mmfile_outf;
 
-        ecb.priv = &mmfr;
-        ecb.outf = _mmfile_outf;
-        if (xdl_init_mmfile( &mmfr, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC ) < 0) {
-            result.error[++result.errorp] = "Couldn't initialize accumulating mmfile (xdl_init_atomic)";
+        if (xdl_init_mmfile( &mmf_r1, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC ) < 0) {
+            result.error[++result.error_counter] = "Couldn't initialize first accumulating mmfile (xdl_init_atomic)";
 			xdl_free_mmfile( &mmf2 );
 			xdl_free_mmfile( &mmf1 );
             return &result;
         }
 
-		if (xdl_diff( &mmf1, &mmf2, &xpp, &xecfg, &ecb ) < 0) {
+        if (xdl_init_mmfile( &mmf_r2, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC ) < 0) {
+            result.error[++result.error_counter] = "Couldn't initialize second accumulating mmfile (xdl_init_atomic)";
+			xdl_free_mmfile( &mmf_r1 );
 			xdl_free_mmfile( &mmf2 );
 			xdl_free_mmfile( &mmf1 );
-            result.error[++result.errorp] = "Couldn't perform diff (xdl_diff)";
+            return &result;
+        }
+
+		if (xdl_patch( &mmf1, &mmf2, XDL_PATCH_NORMAL, &ecb1, &ecb2 ) < 0) {
+			xdl_free_mmfile( &mmf_r2 );
+			xdl_free_mmfile( &mmf_r1 );
+			xdl_free_mmfile( &mmf2 );
+			xdl_free_mmfile( &mmf1 );
+            result.error[++result.error_counter] = "Couldn't perform patch (xdl_patch)";
             return &result;
 		}
 
-        size = xdl_mmfile_size( &mmfr );
+        {
+            int size = xdl_mmfile_size( &mmf_r1 );
 
-        stringr = malloc( sizeof(char) * (size + 1) );
+            string_r1 = malloc( sizeof(char) * (size + 1) );
 
-        xdl_seek_mmfile( &mmfr, 0);
-        if ( (wrote = xdl_read_mmfile( &mmfr, stringr, size )) < size ) {
-            xdl_free_mmfile( &mmfr );
-            result.error[++result.errorp] = "Wasn't able to read entire mmfile result (xdl_read_mmfile)";
-            return &result;
+            xdl_seek_mmfile( &mmf_r1, 0);
+            if ( (wrote = xdl_read_mmfile( &mmf_r1, string_r1, size )) < size ) {
+                xdl_free_mmfile( &mmf_r1 );
+                result.error[++result.error_counter] = "Wasn't able to read (first) entire mmfile result (xdl_read_mmfile)";
+                return &result;
+            }
+            stringr[size] = 0;
+            xdl_free_mmfile( &mmf_r1 );
         }
-        stringr[size] = 0;
-        xdl_free_mmfile( &mmfr );
+
     }
 
-    result.stringr = stringr;
-    return &result;
+}
+*/
+
+void __xdiff( context_t *context, const char *string1, const char *string2 ) {
+
+	mmfile_t *mmf1, *mmf2, *mmf_r1;
+    const char *error;
+
+    mmf1 = &CONTEXT_mmf(0);
+    mmf2 = &CONTEXT_mmf(1);
+    mmf_r1 = &CONTEXT_mmf_result(0);
+
+    initialize_allocator();
+
+    if ( error = _string_2_mmfile( mmf1, string1 ) ) {
+        CONTEXT_add_error( error );
+        CONTEXT_add_error( "Couldn't load string1 into mmfile" );
+        return;
+    }
+
+    if ( error = _string_2_mmfile( mmf2, string2 ) ) {
+        CONTEXT_add_error( error );
+        CONTEXT_add_error( "Couldn't load string2 into mmfile" );
+        return;
+    }
+    
+    {
+        xpparam_t xpp;
+	    xpp.flags = 0;
+
+        xdemitconf_t xecfg;
+	    xecfg.ctxlen = 3;
+
+        xdemitcb_t ecb;
+        ecb.priv = mmf_r1;
+        ecb.outf = _mmfile_outf;
+
+        if (xdl_init_mmfile( mmf_r1, MMF_STD_BLKSIZE, XDL_MMF_ATOMIC ) < 0) {
+            CONTEXT_add_error( "Couldn't initialize accumulating mmfile (xdl_init_atomic)" );
+            return;
+        }
+
+		if (xdl_diff( mmf1, mmf2, &xpp, &xecfg, &ecb ) < 0) {
+            CONTEXT_add_error( "Couldn't perform diff (xdl_diff)" );
+            return;
+		}
+
+        if ( CONTEXT_mmf_result_2_string_result( context, 0 ) ) {
+            CONTEXT_add_error( "Wasn't able to read entire mmfile result (xdl_read_mmfile)" );
+        }
+    }
 }
 
 MODULE = Diff::LibXDiff PACKAGE = Diff::LibXDiff
@@ -158,23 +333,42 @@ _xdiff(string1, string2)
     SV* string1
     SV* string2
     INIT:
-        result_t* result = NULL;
+        context_t context = { 0 };
         RETVAL = &PL_sv_undef;
     CODE:
-        result = __xdiff( SvPVX(string1), SvPVX(string2) );
-        if (result != NULL && result->stringr) {
-            /* Liberally taken from perlxs... hope nothing is leaking */
-            HV* hashr = (HV*) sv_2mortal( (SV*) newHV() );
-            AV* errorr = (AV*) sv_2mortal( (SV*) newAV() );
-            int ii;
-            for (ii = 0; ii <= result->errorp; ii++) {
-                av_push( errorr, newSVpv( result->error[ii], 0 ) );
-                result->error[ii];
-            }
-            hv_store(  hashr, "stringr", 7, newSVpv( result->stringr, 0 ), 0);
-            hv_store(  hashr, "error", 5, newRV( (SV*) errorr ), 0);
-            free( result->stringr );
-            RETVAL = newRV( (SV*) hashr );
+        __xdiff( &context, SvPVX(string1), SvPVX(string2) );
+        HV* hash_result = (HV*) sv_2mortal( (SV*) newHV() );
+        AV* error_result = (AV*) sv_2mortal( (SV*) newAV() );
+        int ii;
+        for (ii = 0; ii < context.error_counter; ii++) {
+            av_push( error_result, newSVpv( context.error[ii], 0 ) );
         }
+        hv_store(  hash_result, "result", 6, newSVpv( context.string_result[0], 0 ), 0);
+        hv_store(  hash_result, "error", 5, newRV( (SV*) error_result ), 0);
+        CONTEXT_cleanup( &context );
+        RETVAL = newRV( (SV*) hash_result );
+    OUTPUT:
+        RETVAL
+
+SV*
+_xpatch(string1, string2)
+    SV* string1
+    SV* string2
+    INIT:
+        context_t context = { 0 };
+        RETVAL = &PL_sv_undef;
+    CODE:
+        __xpatch( &context, SvPVX(string1), SvPVX(string2) );
+        HV* hash_result = (HV*) sv_2mortal( (SV*) newHV() );
+        AV* error_result = (AV*) sv_2mortal( (SV*) newAV() );
+        int ii;
+        for (ii = 0; ii < context.error_counter; ii++) {
+            av_push( error_result, newSVpv( context.error[ii], 0 ) );
+        }
+        hv_store(  hash_result, "result", 6, newSVpv( context.string_result[0], 0 ), 0);
+        hv_store(  hash_result, "rejected_result", 15, newSVpv( context.string_result[1], 0 ), 0);
+        hv_store(  hash_result, "error", 5, newRV( (SV*) error_result ), 0);
+        CONTEXT_cleanup( &context );
+        RETVAL = newRV( (SV*) hash_result );
     OUTPUT:
         RETVAL
