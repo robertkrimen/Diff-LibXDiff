@@ -86,7 +86,10 @@ sub diff {
 
     croak join '', "Unable to process the diff of string1 & string2: ", join ', ', @error if @error;
 
-    return $result->{result};
+    return wantarray ?
+        ( $result->{result} ) :
+        $result->{result}
+    ;
 }
 
 sub patch {
@@ -104,7 +107,10 @@ sub patch {
 
     croak join '', "Unable to process the patch of string1 & string2: ", join ', ', @error if @error;
 
-    return $result->{result}, $result->{rejected_result};
+    return wantarray ?
+        ( $result->{result},  $result->{rejected_result} ) :
+        $result->{result};
+
 }
 
 =head1 AUTHOR
