@@ -2,7 +2,7 @@ NAME
     Diff::LibXDiff - Calculate a diff with LibXDiff (via XS)
 
 VERSION
-    Version 0.03
+    Version 0.04
 
 SYNOPSIS
         use Diff::LibXDiff;
@@ -37,13 +37,17 @@ DESCRIPTION
 
     LibXDiff is the basis of the diff engine for git
 
-    Currently only the "diff" method is supported, and that only with text
-    diffing. More coming soon.
-
 METHODS
   $diff = Diff::LibXDiff->diff( $string1, $string2 )
     Calculate the textual diff of $string1 and $string2 and return the
     result as a string
+
+  $patched = Diff::LibXDiff->patch( $original, $patch )
+  ( $patched, $rejected ) = Diff::LibXDiff->patch( $original, $patch )
+    Calculate the patched string given an original string and a patch string
+
+    If the patching algorithm cannot place a hunk, it will return a second
+    "rejected" result (if called in list context)
 
 AUTHOR
     Robert Krimen, "<rkrimen at cpan.org>"
