@@ -1,12 +1,11 @@
 Changes
 MANIFEST
+MANIFEST.SKIP
 Makefile.PL
 README
-t/01-basic.t
 t/00-load.t
-t/release/boilerplate.t
-t/release/pod-coverage.t
-t/release/pod.t
+t/01-diff.t
+t/02-patch.t
 lib/Diff/LibXDiff.pm
 xdiff.c
 xdiff/xadler32.h
