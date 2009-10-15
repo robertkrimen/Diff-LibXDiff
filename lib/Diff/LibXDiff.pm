@@ -5,7 +5,7 @@ use strict;
 
 =head1 NAME
 
-Diff::LibXDiff - Calculate a diff with LibXDiff (via XS)
+Diff::LibXDiff - Diff and patch with LibXDiff (via XS)
 
 =head1 VERSION
 
@@ -71,7 +71,7 @@ Calculate the textual diff of $string1 and $string2 and return the result as a s
 
 =head2 ( $patched, $rejected ) = Diff::LibXDiff->patch( $original, $patch )
 
-Calculate the patched string given an original string and a patch string
+Generate the patched string given an original string and a patch string
 
 If the patching algorithm cannot place a hunk, it will return a second "rejected" result (if called in list context)
 
